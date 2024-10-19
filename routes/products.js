@@ -9,7 +9,8 @@ router.post('/products',productController.PostAddProduct)
 router.get('/category',productController.getCategory)
 router.get('/category/products',productController.filteredProduct)
 router.put('/edit-product',productController.updateProduct)
-router.post('/order',productController.postOrder)
+router.get('/products/search',productController.searchProduct)
+
 
 
 

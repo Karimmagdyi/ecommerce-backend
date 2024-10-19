@@ -153,7 +153,7 @@ exports.postUserCart = async (req, res, next) => {
     await session.commitTransaction();
 
     const io = require("../socekts").getIo();
-    io.emit("productUpdated", { productId, quantity: product.quantity });
+    io.emit("productUpdated", { productId, quantity: product.quantity,sold:product.locked });
 
     res.status(200).json({
       message: "Cart updated successfully",

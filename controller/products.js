@@ -1,9 +1,5 @@
 const Product = require("../model/product");
 const Category = require("../model/category");
-const category = require("../model/category");
-const cart = require("../model/cart");
-const user = require("../model/user");
-const Order = require("../model/order");
 const product = require("../model/product");
 const {
   BadRequest,
@@ -45,6 +41,7 @@ getAllProducts = async (req, res, next) => {
           quantity: 1,
           locked: 1,
           category: 1,
+          price:1
         },
       },
     ];
@@ -150,93 +147,26 @@ filteredProduct = async (req, res, next) => {
   }
 };
 //cron jobs
-const postOrder = async (req, res, next) => {
-  console.log(req.body, "body");
 
-  try {
-    const { cartId, products, userId, totalPrice, paymentStatus, orderId } =
-      req.body;
 
-    if (!cartId || !products || !userId || !totalPrice || !paymentStatus) {
-      return next(new InternalServerError("all fields is required"));
-    }
 
-    if (paymentStatus === "pending") {
-      const generatedOrderId = `${userId}-${Date.now()}`;
-      console.log(generatedOrderId, "uuid");
+const searchProduct=async(req,res,next)=>{
+  console.log('hi');
+  
+  const {search}=req.query
 
-      orderInMemory[generatedOrderId] = {
-        cartId: cartId,
-        products: products,
-        userId: userId,
-        totalPrice: totalPrice,
-        paymentStatus: paymentStatus,
-      };
+  let filter={}
 
-      for (const product of products) {
-        const productDoc = await Product.findById(product.productId);
-        if (productDoc) {
-          productDoc.locked += product.quantity;
-          await productDoc.save();
-          setTimeout(async () => {
-            productDoc.locked -= product.quantity;
-            await productDoc.save();
-          }, 600000);
-        } else {
-          return next(
-            new NotFound(`Not Found product with that id ${product.productId}`)
-          );
-        }
-      }
-
-      res
-        .status(200)
-        .json({ message: "Order is pending", orderId: generatedOrderId });
-    } else if (paymentStatus === "paid") {
-      const order = orderInMemory[orderId]; // Retrieve the order using orderId from request
-
-      if (!order) {
-        return next(new NotFound(`Not Found order with that id ${orderId}`));
-      }
-
-      // Process the order
-      for (const product of order.products) {
-        const productDoc = await Product.findById(product.productId);
-        if (productDoc) {
-          productDoc.locked -= product.quantity;
-          productDoc.quantity -= product.quantity;
-          productDoc.sold += product.quantity;
-          await productDoc.save();
-        } else {
-          return next(
-            new NotFound(`Not Found product with that id ${product.productId}`)
-          );
-        }
-      }
-
-      const newOrder = new Order({
-        cartId: cartId,
-        products: order.products,
-        userId: userId,
-        totalPrice: totalPrice,
-        paymentStatus: "paid",
-      });
-
-      console.log(orderInMemory, "order in memory");
-
-      await newOrder.save();
-      await cart.findByIdAndDelete({ _id: cartId });
-      delete orderInMemory[orderId]; // Remove the order from memory
-      res
-        .status(200)
-        .json({ message: "Order created successfully", order: newOrder });
-    }
-  } catch (err) {
-    return next(
-      new InternalServerError("An error occurred while processing the order")
-    );
+  if(search){
+    filter.$or=[
+      {name:{$regex:search,$options:'i'}},
+      // {description:{$regex:search,$options:'i'}}
+    ]
   }
-};
+  const searchedProducts=await Product.find(filter).select('name price category description image')
+  console.log(searchedProducts,searchedProducts);
+  return res.status(200).json({products:searchedProducts,length:searchedProducts.length})
+}
 
 module.exports = {
   getAllProducts,
@@ -245,5 +175,5 @@ module.exports = {
   getProductById,
   updateProduct,
   filteredProduct,
-  postOrder,
+  searchProduct
 };

@@ -9,6 +9,7 @@ const app=express()
 const productRouter=require('./routes/products')
 const authRouter=require('./routes/auth')
 const cartRouter=require('./routes/cart')
+const orderRouter=require('./routes/order')
 const multer=require('multer')
 const { v4: uuidv4 } = require('uuid');
 const path = require('path'); // Import the path module
@@ -44,6 +45,7 @@ app.use(multer({storage:storage}).single('profilePicture'))
   app.use(productRouter)
   app.use(authRouter)
   app.use(cartRouter)
+  app.use(orderRouter)
   app.use(handleError)
 
 
