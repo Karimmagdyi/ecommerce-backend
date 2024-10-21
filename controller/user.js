@@ -8,7 +8,7 @@ const { default: mongoose } = require("mongoose");
 const {
   InternalServerError,
   NotFound,
-  Validation,
+  ValidationError,
 } = require("../utils/helper functions/handleError");
 
 exports.postSignup = (req, res, next) => {
@@ -17,14 +17,14 @@ exports.postSignup = (req, res, next) => {
 
   // Check for required fields
   if (!name || !email || !password) {
-    return next(new Validation("Please add all fields"));
+    return next(new ValidationError("Please add all fields"));
   }
 
   // Check if the user already exists
   User.findOne({ email: email })
     .then((userExist) => {
       if (userExist) {
-        return next(new Validation("email already exist"));
+        return next(new ValidationError("email already exist"));
       }
       return bcrypt.hash(password, 12); // Hash the password if user doesn't exist
     })
@@ -51,15 +51,15 @@ exports.postSignup = (req, res, next) => {
 exports.postLogin = (req, res, next) => {
   const { email, password } = req.body;
   if (!email || !password) {
-    return next(new Validation("Please add all fields"));
+    return next(new ValidationError("Please add all fields"));
   }
   User.findOne({ email: email }).then((user) => {
     if (!user) {
-      return next(new Validation("Invalid email or password"));
+      return next(new ValidationError("Invalid email or password"));
     }
     bcrypt.compare(password, user.password).then((doMatch) => {
       if (!doMatch) {
-        return next(new Validation("Invalid email or password"));
+        return next(new ValidationError("Invalid email or password"));
       }
       const token = jwt.sign(
         { id: user.id, name: user.name },
@@ -91,7 +91,7 @@ exports.editProfilePicture = (req, res, next) => {
   console.log("Uploaded file:", req.file);
   const picture = req.file;
   if (!picture) {
-    return next(new Validation('"No file uploaded."'));
+    return next(new ValidationError('"No file uploaded."'));
   }
   const relativePath = `/images/${picture.filename}`;
   User.findOneAndUpdate(
@@ -116,31 +116,36 @@ exports.postUserCart = async (req, res, next) => {
   const session = await mongoose.startSession();
 
   try {
+    //
     session.startTransaction();
-
     const product = await Product.findOne({ _id: productId }).session(session);
     if (!product) {
       await session.abortTransaction();
       return next(new NotFound("Product not found"));
     }
-
+    //check if the cart exist
     let cart = await Cart.findOne({ userId })
       .session(session)
       .populate("products.productId");
-
     if (!cart) {
       const newCart = new Cart({
         userId: userId,
         products: [{ productId: productId, quantity: 1 }],
       });
       cart = await newCart.save({ session });
-    } else {
+    }
+    //Check if the product exist in the cart
+    else {
       const productIndex = cart.products.findIndex((product) =>
         product.productId.equals(productId)
       );
 
       if (productIndex !== -1) {
-        cart.products[productIndex].quantity += 1;
+        if (cart.products[productIndex].quantity < product.quantity) {
+          cart.products[productIndex].quantity += 1;
+        } else {
+          return next(new InternalServerError("No Items Lefts"));
+        }
       } else {
         cart.products.push({
           productId: productId,
@@ -153,7 +158,11 @@ exports.postUserCart = async (req, res, next) => {
     await session.commitTransaction();
 
     const io = require("../socekts").getIo();
-    io.emit("productUpdated", { productId, quantity: product.quantity,sold:product.locked });
+    io.emit("productUpdated", {
+      productId,
+      quantity: product.quantity,
+      sold: product.locked,
+    });
 
     res.status(200).json({
       message: "Cart updated successfully",
@@ -173,7 +182,7 @@ exports.getCart = async (req, res, next) => {
   try {
     const userId = req.query.userId;
     if (!userId) {
-      return next(new Validation("userId is required"));
+      return next(new ValidationError("userId is required"));
     }
     console.log(userId, "id");
     const cart = await Cart.findOne({ userId }).populate("products.productId");
@@ -187,3 +196,7 @@ exports.getCart = async (req, res, next) => {
     return next(new InternalServerError("Error fetching cart"));
   }
 };
+
+
+
+

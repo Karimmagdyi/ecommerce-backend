@@ -1,6 +1,6 @@
 const {
   AppError,
-  Validation,
+  ValidationError,
   BadRequest,
   NotFound,
   InternalServerError,
@@ -14,7 +14,7 @@ const customErrorHandle = (err, req, res, next) => {
     return res.status(err.statusCode).json(err.serialize());
   }
 
-  if (err instanceof Validation) {
+  if (err instanceof ValidationError) {
     return res.status(err.statusCode).json(err.serialize());
   }
   if (err instanceof BadRequest) {
